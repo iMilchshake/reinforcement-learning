@@ -92,6 +92,9 @@ class GridEnvironment(Environment):
         return valid_actions
 
     def perform_action(self, action: int) -> int:
+        if self.is_terminated():
+            raise Exception('env is already terminated!')
+
         if action not in self.get_valid_actions():
             return self.invalid_move_reward
 

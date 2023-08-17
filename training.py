@@ -1,4 +1,5 @@
 # Settings
+from typing import Callable
 
 import numpy as np
 import pygame
@@ -10,24 +11,60 @@ RESOLUTION = (1280, 720)
 FPS = 0
 
 
-def epsilon_greedy(Q: np.ndarray, state: int, epsilon: float):
-    if np.random.random() > epsilon:
-        return greedy(Q, state)
-    else:
-        return np.random.choice(range(Q.shape[1]))
+class ActionSelectionAlgorithms:
+    @staticmethod
+    def epsilon_greedy(epsilon: float) -> Callable[[np.ndarray, int], int]:
+        def calc(Q: np.ndarray, state: int) -> int:
+            if np.random.random() > epsilon:
+                return int(np.argmax(Q[state]))
+            else:
+                return np.random.choice(range(Q.shape[1]))
+
+        return calc
+
+    @staticmethod
+    def greedy() -> Callable[[np.ndarray, int], int]:
+        def calc(Q: np.ndarray, state: int) -> int:
+            return int(np.argmax(Q[state]))
+
+        return calc
+
+    @staticmethod
+    def softmax(temperature: float = 100) -> Callable[[np.ndarray, int], int]:
+        def calc(Q: np.ndarray, state: int) -> int:
+            total = np.sum(np.exp(Q[state] / temperature))
+            probabilities = np.exp(Q[state] / temperature) / total
+            action = np.random.choice(Q.shape[1], p=probabilities)
+            return action
+
+        return calc
 
 
-def greedy(Q: np.ndarray, state: int):
-    return np.argmax(Q[state])
+def epsilon_greedy(epsilon: float):
+    def calc(Q: np.ndarray, state: int):
+        if np.random.random() > epsilon:
+            return np.argmax(Q[state])
+        else:
+            return np.random.choice(range(Q.shape[1]))
+
+    return calc
 
 
-def softmax(Q: np.ndarray, state: int, temporance=100):
-    total = np.sum(np.exp(Q[state] / temporance))
-    probabilities = np.exp(Q[state] / temporance) / total
-    # print(probabilities)
-    index = np.random.choice(Q.shape[1], p=probabilities)
+def greedy():
+    def calc(Q: np.ndarray, state: int):
+        return np.argmax(Q[state])
 
-    return index
+    return calc
+
+
+def softmax(temperature=100):
+    def calc(Q: np.ndarray, state: int):
+        total = np.sum(np.exp(Q[state] / temperature))
+        probabilities = np.exp(Q[state] / temperature) / total
+        action = np.random.choice(Q.shape[1], p=probabilities)
+        return action
+
+    return calc
 
 
 def random_monte_carlo(env: Environment, iterations: int, episode_length: int):
@@ -66,6 +103,41 @@ def random_monte_carlo(env: Environment, iterations: int, episode_length: int):
     return Q
 
 
+def sarsa(env: Environment,
+          iterations: int,
+          max_episode_length: int,
+          action_selection: Callable[[np.ndarray, int], int]):
+    Q = np.zeros((env.get_state_count(), env.get_action_count()), dtype=np.float32)
+    epsilon = 0.05
+    alpha = 0.5  # learning rate
+    gamma = 0.99  # discounting
+
+    for iteration in range(iterations):
+        print(iteration, Q[0])
+        state = env.get_state()
+        action = action_selection(Q, state)
+        reward = env.perform_action(action)
+
+        for pos in range(max_episode_length):
+            next_state = env.get_state()
+            next_action = action_selection(Q, next_state)
+
+            # sarsa update rule
+            Q[state, action] += alpha * (reward + gamma * Q[next_state, next_action]
+                                         - Q[state, action])
+
+            if env.is_terminated():
+                break
+
+            state = next_state
+            action = next_action
+            reward = env.perform_action(action)
+
+        env.reset()
+
+    return Q
+
+
 if __name__ == '__main__':
     # pygame setup
     pygame.init()
@@ -75,8 +147,8 @@ if __name__ == '__main__':
     env = GridEnvironment(width=10,
                           height=10,
                           move_reward=-1,
-                          goal_reach_reward=1000,
-                          invalid_move_reward=-20)
+                          goal_reach_reward=100,
+                          invalid_move_reward=-100)
 
     while True:
         handle_quit()
@@ -87,7 +159,11 @@ if __name__ == '__main__':
         # reward = env.perform_action(np.random.choice(range(env.get_action_count())))
         # print(env.agent_position, reward)
         env.visualize(screen, cell_size=35)
-        optimal_Q = random_monte_carlo(env, iterations=10000, episode_length=50)
+        # optimal_Q = random_monte_carlo(env, iterations=10000, episode_length=50)
+        optimal_Q = sarsa(env,
+                          iterations=10000,
+                          max_episode_length=50,
+                          action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.05))
         optimal_V = np.max(optimal_Q, -1)
         optimal_actions = np.argmax(optimal_Q, -1)
 
