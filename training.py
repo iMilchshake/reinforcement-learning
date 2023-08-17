@@ -6,10 +6,10 @@ import pygame
 from tqdm import trange
 
 from environments import Environment, GridEnvironment
-from visualization import display_fps, handle_quit, render_content
+from visualization import draw_circle_on_grid, handle_quit, render_content, visualize_numpy_array
 
 RESOLUTION = (1280, 720)
-FPS = 0
+FPS = 60
 
 
 class ActionSelectionAlgorithms:
@@ -93,6 +93,44 @@ class PolicyIterationAlgorithm:
         return self.Q
 
 
+class PolicyIterationVisualizer:
+    def __init__(self, env: Environment):
+        self.env = env
+
+    def visualize(self):
+        self.env.visualize()
+
+
+class EnvironmentVisualizer:
+    @abstractmethod
+    def visualize(self, *args):
+        pass
+
+
+class GridEnvironmentVisualizer(EnvironmentVisualizer):
+
+    def __init__(self, cell_size: int,
+                 screen: pygame.Surface,
+                 gridEnv: GridEnvironment):
+        self.cell_size = cell_size
+        self.screen = screen
+        self.gridEnv = gridEnv
+
+    def visualize(self):
+        # draw grid
+        visualize_numpy_array(self.screen, self.gridEnv.grid, self.cell_size)
+
+        # draw player and goal
+        draw_circle_on_grid(self.screen, self.gridEnv.agent_position[0],
+                            self.gridEnv.agent_position[1],
+                            self.cell_size, (0, 185, 0))
+        draw_circle_on_grid(self.screen, self.gridEnv.goal_position[0],
+                            self.gridEnv.goal_position[1],
+                            self.cell_size, (150, 25, 0))
+
+        render_content(clock, FPS)  # TODO: uses global variables
+
+
 class SarsaPolicyIteration(PolicyIterationAlgorithm):
 
     def __init__(self,
@@ -100,7 +138,8 @@ class SarsaPolicyIteration(PolicyIterationAlgorithm):
                  alpha: float,
                  gamma: float,
                  action_selection: Callable[[np.ndarray, int], int],
-                 max_episode_length: int):
+                 max_episode_length: int,
+                 visualizer: EnvironmentVisualizer):
 
         super().__init__(env)
         self.env = env
@@ -108,6 +147,7 @@ class SarsaPolicyIteration(PolicyIterationAlgorithm):
         self.gamma = gamma  # discounting
         self.action_selection = action_selection
         self.max_episode_length = max_episode_length
+        self.visualizer = visualizer
 
     def step(self):
         self.env.reset()
@@ -115,6 +155,7 @@ class SarsaPolicyIteration(PolicyIterationAlgorithm):
         state = self.env.get_state()
         action = self.action_selection(self.Q, state)
         reward = self.env.perform_action(action)
+        self.visualizer.visualize()
 
         for pos in range(self.max_episode_length):
             next_state = self.env.get_state()
@@ -130,68 +171,32 @@ class SarsaPolicyIteration(PolicyIterationAlgorithm):
             state = next_state
             action = next_action
             reward = self.env.perform_action(action)
-
-
-# def sarsa(env: Environment,
-#           iterations: int,
-#           max_episode_length: int,
-#           action_selection: Callable[[np.ndarray, int], int]):
-#     Q = np.zeros((env.get_state_count(), env.get_action_count()), dtype=np.float32)
-#     epsilon = 0.05
-#     alpha = 0.5  # learning rate
-#     gamma = 0.99  # discounting
-#
-#     for iteration in range(iterations):
-#         print(iteration, Q[0])
-#         state = env.get_state()
-#         action = action_selection(Q, state)
-#         reward = env.perform_action(action)
-#
-#         for pos in range(max_episode_length):
-#             next_state = env.get_state()
-#             next_action = action_selection(Q, next_state)
-#
-#             # sarsa update rule
-#             Q[state, action] += alpha * (reward + gamma * Q[next_state, next_action]
-#                                          - Q[state, action])
-#
-#             if env.is_terminated():
-#                 break
-#
-#             state = next_state
-#             action = next_action
-#             reward = env.perform_action(action)
-#
-#         env.reset()
-#
-#     return Q
+            self.visualizer.visualize()
 
 
 if __name__ == '__main__':
     # pygame setup
     pygame.init()
     screen = pygame.display.set_mode(RESOLUTION)
-    pygame.display.set_caption("Title")
+    pygame.display.set_caption("RL Visualization")
     clock = pygame.time.Clock()
+
     env = GridEnvironment(width=10,
                           height=10,
                           move_reward=-1,
                           goal_reach_reward=100,
                           invalid_move_reward=-100)
 
+    visualizer = GridEnvironmentVisualizer(cell_size=35,
+                                           screen=screen,
+                                           gridEnv=env)
+
+    sarsa = SarsaPolicyIteration(env,
+                                 alpha=0.1,
+                                 gamma=0.99,
+                                 action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.05),
+                                 max_episode_length=50,
+                                 visualizer=visualizer)
     while True:
         handle_quit()
-        screen.fill("white")
-
-        env.visualize(screen, cell_size=35)
-        sarsa = SarsaPolicyIteration(env,
-                                     alpha=0.1,
-                                     gamma=0.99,
-                                     action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.05),
-                                     max_episode_length=50)
-        optimal_Q = sarsa.run(10_000)
-        optimal_V = np.reshape(np.max(optimal_Q, -1), (-1, 10))
-        optimal_policy = np.reshape(np.argmax(optimal_Q, -1), (-1, 10))
-
-        display_fps(screen, clock)
-        render_content(clock, FPS)
+        sarsa.step()

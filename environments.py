@@ -8,9 +8,6 @@ from visualization import draw_circle_on_grid, visualize_numpy_array
 
 class Environment:
 
-    def __init__(self):
-        pass
-
     @abstractmethod
     def get_state_count(self) -> int:
         pass
@@ -51,7 +48,6 @@ class GridEnvironment(Environment):
                  move_reward: int,
                  goal_reach_reward: int,
                  invalid_move_reward: int):
-        super().__init__()
         self.width = width
         self.height = height
         self.grid = np.zeros((width, height), dtype=np.int32)
@@ -112,14 +108,6 @@ class GridEnvironment(Environment):
             return self.goal_reach_reward
         else:
             return self.move_reward
-
-    def visualize(self, screen: pygame.Surface, cell_size):
-        # draw grid
-        visualize_numpy_array(screen, self.grid, cell_size)
-
-        # draw player and goal
-        draw_circle_on_grid(screen, self.agent_position[0], self.agent_position[1], cell_size, (0, 185, 0))
-        draw_circle_on_grid(screen, self.goal_position[0], self.goal_position[1], cell_size, (150, 25, 0))
 
     def goal_reached(self):
         """ reward based on the current position """

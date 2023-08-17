@@ -32,7 +32,7 @@ def handle_quit():
 
 def display_fps(screen: pygame.Surface, clock: pygame.time.Clock):
     font = pygame.font.Font(pygame.font.get_default_font(), 36)
-    text = font.render(f'{clock.get_fps():.0f}', True, (0, 0, 0))
+    text = font.render(f'{clock.get_fps():.0f}', True, (0, 120, 0))
     screen.blit(text, dest=(0, 0))
 
 
