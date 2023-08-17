@@ -1,8 +1,9 @@
-# Settings
+from abc import abstractmethod
 from typing import Callable
 
 import numpy as np
 import pygame
+from tqdm import trange
 
 from environments import Environment, GridEnvironment
 from visualization import display_fps, handle_quit, render_content
@@ -40,33 +41,6 @@ class ActionSelectionAlgorithms:
         return calc
 
 
-def epsilon_greedy(epsilon: float):
-    def calc(Q: np.ndarray, state: int):
-        if np.random.random() > epsilon:
-            return np.argmax(Q[state])
-        else:
-            return np.random.choice(range(Q.shape[1]))
-
-    return calc
-
-
-def greedy():
-    def calc(Q: np.ndarray, state: int):
-        return np.argmax(Q[state])
-
-    return calc
-
-
-def softmax(temperature=100):
-    def calc(Q: np.ndarray, state: int):
-        total = np.sum(np.exp(Q[state] / temperature))
-        probabilities = np.exp(Q[state] / temperature) / total
-        action = np.random.choice(Q.shape[1], p=probabilities)
-        return action
-
-    return calc
-
-
 def random_monte_carlo(env: Environment, iterations: int, episode_length: int):
     Q = np.zeros((env.get_state_count(), env.get_action_count()), dtype=np.int32)
 
@@ -83,7 +57,7 @@ def random_monte_carlo(env: Environment, iterations: int, episode_length: int):
             state = env.get_state()
             # action = np.random.choice(range(env.get_action_count()))
             # action = epsilon_greedy(Q, state, epsilon=0.05)
-            action = softmax(Q, state)
+            action = ActionSelectionAlgorithms.epsilon_greedy(0.1)(Q, state)
             reward = env.perform_action(action)
 
             rewards[pos] = reward
@@ -103,39 +77,94 @@ def random_monte_carlo(env: Environment, iterations: int, episode_length: int):
     return Q
 
 
-def sarsa(env: Environment,
-          iterations: int,
-          max_episode_length: int,
-          action_selection: Callable[[np.ndarray, int], int]):
-    Q = np.zeros((env.get_state_count(), env.get_action_count()), dtype=np.float32)
-    epsilon = 0.05
-    alpha = 0.5  # learning rate
-    gamma = 0.99  # discounting
+class PolicyIterationAlgorithm:
 
-    for iteration in range(iterations):
-        print(iteration, Q[0])
-        state = env.get_state()
-        action = action_selection(Q, state)
-        reward = env.perform_action(action)
+    def __init__(self, env: Environment):
+        self.Q = np.zeros((env.get_state_count(), env.get_action_count()), dtype=np.float32)
 
-        for pos in range(max_episode_length):
-            next_state = env.get_state()
-            next_action = action_selection(Q, next_state)
+    @abstractmethod
+    def step(self):
+        pass
+
+    def run(self, iterations: int) -> np.ndarray[np.float32, np.float32]:
+        """ run algorithm for certain number of steps """
+        for _ in trange(iterations):
+            self.step()
+        return self.Q
+
+
+class SarsaPolicyIteration(PolicyIterationAlgorithm):
+
+    def __init__(self,
+                 env: Environment,
+                 alpha: float,
+                 gamma: float,
+                 action_selection: Callable[[np.ndarray, int], int],
+                 max_episode_length: int):
+
+        super().__init__(env)
+        self.env = env
+        self.alpha = alpha  # learning rate
+        self.gamma = gamma  # discounting
+        self.action_selection = action_selection
+        self.max_episode_length = max_episode_length
+
+    def step(self):
+        self.env.reset()
+
+        state = self.env.get_state()
+        action = self.action_selection(self.Q, state)
+        reward = self.env.perform_action(action)
+
+        for pos in range(self.max_episode_length):
+            next_state = self.env.get_state()
+            next_action = self.action_selection(self.Q, next_state)
 
             # sarsa update rule
-            Q[state, action] += alpha * (reward + gamma * Q[next_state, next_action]
-                                         - Q[state, action])
+            self.Q[state, action] += self.alpha * (reward + self.gamma * self.Q[next_state, next_action]
+                                                   - self.Q[state, action])
 
-            if env.is_terminated():
+            if self.env.is_terminated():
                 break
 
             state = next_state
             action = next_action
-            reward = env.perform_action(action)
+            reward = self.env.perform_action(action)
 
-        env.reset()
 
-    return Q
+# def sarsa(env: Environment,
+#           iterations: int,
+#           max_episode_length: int,
+#           action_selection: Callable[[np.ndarray, int], int]):
+#     Q = np.zeros((env.get_state_count(), env.get_action_count()), dtype=np.float32)
+#     epsilon = 0.05
+#     alpha = 0.5  # learning rate
+#     gamma = 0.99  # discounting
+#
+#     for iteration in range(iterations):
+#         print(iteration, Q[0])
+#         state = env.get_state()
+#         action = action_selection(Q, state)
+#         reward = env.perform_action(action)
+#
+#         for pos in range(max_episode_length):
+#             next_state = env.get_state()
+#             next_action = action_selection(Q, next_state)
+#
+#             # sarsa update rule
+#             Q[state, action] += alpha * (reward + gamma * Q[next_state, next_action]
+#                                          - Q[state, action])
+#
+#             if env.is_terminated():
+#                 break
+#
+#             state = next_state
+#             action = next_action
+#             reward = env.perform_action(action)
+#
+#         env.reset()
+#
+#     return Q
 
 
 if __name__ == '__main__':
@@ -154,21 +183,15 @@ if __name__ == '__main__':
         handle_quit()
         screen.fill("white")
 
-        # print(env.get_valid_actions())
-        # print(env.agent_position)
-        # reward = env.perform_action(np.random.choice(range(env.get_action_count())))
-        # print(env.agent_position, reward)
         env.visualize(screen, cell_size=35)
-        # optimal_Q = random_monte_carlo(env, iterations=10000, episode_length=50)
-        optimal_Q = sarsa(env,
-                          iterations=10000,
-                          max_episode_length=50,
-                          action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.05))
-        optimal_V = np.max(optimal_Q, -1)
-        optimal_actions = np.argmax(optimal_Q, -1)
-
-        B = np.reshape(optimal_V, (-1, 10))
-        A = np.reshape(optimal_actions, (-1, 10))
+        sarsa = SarsaPolicyIteration(env,
+                                     alpha=0.1,
+                                     gamma=0.99,
+                                     action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.05),
+                                     max_episode_length=50)
+        optimal_Q = sarsa.run(10_000)
+        optimal_V = np.reshape(np.max(optimal_Q, -1), (-1, 10))
+        optimal_policy = np.reshape(np.argmax(optimal_Q, -1), (-1, 10))
 
         display_fps(screen, clock)
         render_content(clock, FPS)
