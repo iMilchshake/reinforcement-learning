@@ -93,12 +93,12 @@ class PolicyIterationAlgorithm:
         return self.Q
 
 
-class PolicyIterationVisualizer:
-    def __init__(self, env: Environment):
-        self.env = env
-
-    def visualize(self):
-        self.env.visualize()
+# class PolicyIterationVisualizer:
+#     def __init__(self, env: Environment):
+#         self.env = env
+#
+#     def visualize(self):
+#         self.env.visualize()
 
 
 class EnvironmentVisualizer:

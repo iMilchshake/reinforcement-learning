@@ -1,9 +1,6 @@
 from abc import abstractmethod
 
 import numpy as np
-import pygame
-
-from visualization import draw_circle_on_grid, visualize_numpy_array
 
 
 class Environment:
@@ -26,10 +23,6 @@ class Environment:
 
     @abstractmethod
     def perform_action(self, action: int):
-        pass
-
-    @abstractmethod
-    def visualize(self, *args):
         pass
 
     @abstractmethod
@@ -120,16 +113,3 @@ class GridEnvironment(Environment):
 
     def is_terminated(self) -> bool:
         return self.goal_reached()
-
-
-if __name__ == '__main__':
-    env = GridEnvironment(width=10,
-                          height=10,
-                          move_reward=0,
-                          goal_reach_reward=1000,
-                          invalid_move_reward=-100)
-    print(env.get_state())
-    env.agent_position[0] = 6
-    print(env.get_state())
-    env.agent_position[1] = 6
-    print(env.get_state())
