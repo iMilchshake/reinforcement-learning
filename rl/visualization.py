@@ -1,7 +1,7 @@
 import pygame
 
 
-def visualize_numpy_array(screen: pygame.Surface, array, cell_size=10):
+def visualize_numpy_array(screen: pygame.Surface, array, cell_size, wall_color: tuple):
     rows, cols = array.shape
 
     for y in range(rows):
@@ -13,7 +13,7 @@ def visualize_numpy_array(screen: pygame.Surface, array, cell_size=10):
                 else:
                     color = (200, 200, 200)
             else:
-                color = (0, 0, 0)
+                color = wall_color
             pygame.draw.rect(screen, color, (x * cell_size, y * cell_size, cell_size, cell_size))
 
 

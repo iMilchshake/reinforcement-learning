@@ -26,10 +26,6 @@ class Environment:
         pass
 
     @abstractmethod
-    def get_valid_actions(self):
-        pass
-
-    @abstractmethod
     def get_action_count(self):
         pass
 
@@ -55,16 +51,25 @@ class Environment:
 
 class GridEnvironment(Environment):
 
-    def __init__(self, width: int, height: int, move_reward: int, goal_reach_reward: int, invalid_move_reward: int):
+    def __init__(self, width: int,
+                 height: int,
+                 move_reward: int,
+                 goal_reach_reward: int,
+                 wall_touch_reward: int,
+                 invalid_move_reward: int,
+                 random_wall_ratio: float):
         super().__init__()
         self.width = width
         self.height = height
-        self.grid = np.zeros((width, height), dtype=np.int32)
+        self.grid = np.random.choice([0, 1],
+                                     size=(width, height),
+                                     p=(1 - random_wall_ratio, random_wall_ratio))
         self.agent_position = np.array((0, 0), dtype=np.int32)
-        self.goal_position = np.array((9, 9), dtype=np.int32)
+        self.goal_position = np.array((width - 1, height - 1), dtype=np.int32)
         self.move_reward = move_reward
         self.goal_reach_reward = goal_reach_reward
         self.invalid_move_reward = invalid_move_reward
+        self.wall_touch_reward = wall_touch_reward
         self.reset()
 
     def get_state_count(self):
@@ -77,7 +82,7 @@ class GridEnvironment(Environment):
     def get_action_count(self):
         return 4
 
-    def get_valid_actions(self):
+    def get_in_bounds_actions(self):
         """ 0=up, 1=right, 2=down, 3=left"""
 
         valid_actions = []
@@ -100,7 +105,7 @@ class GridEnvironment(Environment):
         if self.is_terminated():
             raise Exception('env is already terminated!')
 
-        if action not in self.get_valid_actions():
+        if action not in self.get_in_bounds_actions():
             return self.invalid_move_reward
 
         match action:
@@ -112,18 +117,21 @@ class GridEnvironment(Environment):
                 self.agent_position[1] += 1
             case 3:  # left
                 self.agent_position[0] -= 1
-
         self.update_visualizer()
 
         if self.goal_reached():
             return self.goal_reach_reward
+        elif self.on_wall():
+            return self.wall_touch_reward
         else:
             return self.move_reward
 
-    def goal_reached(self):
-        """ reward based on the current position """
+    def goal_reached(self) -> bool:
         return self.agent_position[0] == self.goal_position[0] \
             and self.agent_position[1] == self.goal_position[1]
+
+    def on_wall(self) -> bool:
+        return self.grid[self.agent_position[0], self.agent_position[1]] == 1
 
     def reset(self):
         self.agent_position[0] = 0
@@ -148,7 +156,7 @@ class GridEnvironmentVisualizer(EnvironmentVisualizer):
 
     def visualize(self):
         # draw grid
-        visualize_numpy_array(self.screen, self.env.grid, self.cell_size)
+        visualize_numpy_array(self.screen, self.env.grid, self.cell_size, wall_color=(25, 0, 0))
 
         # draw player and goal
         draw_circle_on_grid(self.screen, self.env.agent_position[0],

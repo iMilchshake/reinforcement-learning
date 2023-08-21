@@ -6,7 +6,7 @@ import pygame
 from tqdm import trange
 
 from environments import Environment, GridEnvironment, GridEnvironmentVisualizer
-from visualization import handle_quit
+from rl.visualization import handle_quit
 
 RESOLUTION = (1280, 720)
 
@@ -131,6 +131,17 @@ class SarsaPolicyIteration(PolicyIterationAlgorithm):
             reward = self.env.perform_action(action)
 
 
+class Agent:
+
+    def __init__(self, Q: np.ndarray[np.float32, np.float32],
+                 action_selection: Callable[[np.ndarray, int], int]):
+        self.Q = Q
+        self.action_selection = action_selection
+
+    def perform_action(self, env: Environment):
+        env.perform_action(self.action_selection(self.Q, env.get_state()))
+
+
 if __name__ == '__main__':
     # pygame setup
     pygame.init()
@@ -138,24 +149,39 @@ if __name__ == '__main__':
     pygame.display.set_caption("RL Visualization")
     clock = pygame.time.Clock()
 
-    env = GridEnvironment(width=10,
-                          height=10,
+    # define environment, visualizer and learning method
+    env = GridEnvironment(width=20,
+                          height=20,
                           move_reward=-1,
                           goal_reach_reward=100,
-                          invalid_move_reward=-100)
+                          invalid_move_reward=-100,
+                          wall_touch_reward=-100,
+                          random_wall_ratio=0.25)
 
-    visualizer = GridEnvironmentVisualizer(cell_size=35,
+    visualizer = GridEnvironmentVisualizer(cell_size=25,
                                            screen=screen,
-                                           fps=0,  # unlock fps
+                                           fps=15,  # unlock fps
                                            clock=clock,
                                            env=env)
-    env.add_visualizer(visualizer)
 
     sarsa = SarsaPolicyIteration(env,
                                  alpha=0.1,
                                  gamma=0.99,
-                                 action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.10),
-                                 max_episode_length=50)
-    for _ in trange(10000):
-        handle_quit()
+                                 action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.15),
+                                 max_episode_length=40)
+
+    # perform training
+    visualizer.visualize()
+    for _ in trange(40000):
         sarsa.step()
+
+    # visualize fully greedy agent
+    agent = Agent(Q=sarsa.Q, action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.01))
+    env.reset()
+    env.add_visualizer(visualizer)
+
+    for _ in trange(1000):
+        if env.is_terminated():
+            env.reset()
+        agent.perform_action(env)
+        handle_quit()
