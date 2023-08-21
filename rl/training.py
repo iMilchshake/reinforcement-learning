@@ -5,11 +5,10 @@ import numpy as np
 import pygame
 from tqdm import trange
 
-from environments import Environment, GridEnvironment
-from visualization import draw_circle_on_grid, handle_quit, render_content, visualize_numpy_array
+from environments import Environment, GridEnvironment, GridEnvironmentVisualizer
+from visualization import handle_quit
 
 RESOLUTION = (1280, 720)
-FPS = 60
 
 
 class ActionSelectionAlgorithms:
@@ -93,44 +92,6 @@ class PolicyIterationAlgorithm:
         return self.Q
 
 
-# class PolicyIterationVisualizer:
-#     def __init__(self, env: Environment):
-#         self.env = env
-#
-#     def visualize(self):
-#         self.env.visualize()
-
-
-class EnvironmentVisualizer:
-    @abstractmethod
-    def visualize(self, *args):
-        pass
-
-
-class GridEnvironmentVisualizer(EnvironmentVisualizer):
-
-    def __init__(self, cell_size: int,
-                 screen: pygame.Surface,
-                 gridEnv: GridEnvironment):
-        self.cell_size = cell_size
-        self.screen = screen
-        self.gridEnv = gridEnv
-
-    def visualize(self):
-        # draw grid
-        visualize_numpy_array(self.screen, self.gridEnv.grid, self.cell_size)
-
-        # draw player and goal
-        draw_circle_on_grid(self.screen, self.gridEnv.agent_position[0],
-                            self.gridEnv.agent_position[1],
-                            self.cell_size, (0, 185, 0))
-        draw_circle_on_grid(self.screen, self.gridEnv.goal_position[0],
-                            self.gridEnv.goal_position[1],
-                            self.cell_size, (150, 25, 0))
-
-        render_content(clock, FPS)  # TODO: uses global variables
-
-
 class SarsaPolicyIteration(PolicyIterationAlgorithm):
 
     def __init__(self,
@@ -138,8 +99,7 @@ class SarsaPolicyIteration(PolicyIterationAlgorithm):
                  alpha: float,
                  gamma: float,
                  action_selection: Callable[[np.ndarray, int], int],
-                 max_episode_length: int,
-                 visualizer: EnvironmentVisualizer):
+                 max_episode_length: int):
 
         super().__init__(env)
         self.env = env
@@ -147,7 +107,6 @@ class SarsaPolicyIteration(PolicyIterationAlgorithm):
         self.gamma = gamma  # discounting
         self.action_selection = action_selection
         self.max_episode_length = max_episode_length
-        self.visualizer = visualizer
 
     def step(self):
         self.env.reset()
@@ -155,7 +114,6 @@ class SarsaPolicyIteration(PolicyIterationAlgorithm):
         state = self.env.get_state()
         action = self.action_selection(self.Q, state)
         reward = self.env.perform_action(action)
-        self.visualizer.visualize()
 
         for pos in range(self.max_episode_length):
             next_state = self.env.get_state()
@@ -171,7 +129,6 @@ class SarsaPolicyIteration(PolicyIterationAlgorithm):
             state = next_state
             action = next_action
             reward = self.env.perform_action(action)
-            self.visualizer.visualize()
 
 
 if __name__ == '__main__':
@@ -189,14 +146,16 @@ if __name__ == '__main__':
 
     visualizer = GridEnvironmentVisualizer(cell_size=35,
                                            screen=screen,
-                                           gridEnv=env)
+                                           fps=0,  # unlock fps
+                                           clock=clock,
+                                           env=env)
+    env.add_visualizer(visualizer)
 
     sarsa = SarsaPolicyIteration(env,
                                  alpha=0.1,
                                  gamma=0.99,
-                                 action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.05),
-                                 max_episode_length=50,
-                                 visualizer=visualizer)
-    while True:
+                                 action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.10),
+                                 max_episode_length=50)
+    for _ in trange(10000):
         handle_quit()
         sarsa.step()

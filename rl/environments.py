@@ -1,9 +1,21 @@
 from abc import abstractmethod
 
 import numpy as np
+import pygame
+
+from rl.visualization import draw_circle_on_grid, render_content, visualize_numpy_array
+
+
+class EnvironmentVisualizer:
+    @abstractmethod
+    def visualize(self):
+        pass
 
 
 class Environment:
+
+    def __init__(self):
+        self.visualizer = None
 
     @abstractmethod
     def get_state_count(self) -> int:
@@ -23,7 +35,7 @@ class Environment:
 
     @abstractmethod
     def perform_action(self, action: int):
-        pass
+        self.update_visualizer()
 
     @abstractmethod
     def reset(self):
@@ -33,14 +45,18 @@ class Environment:
     def is_terminated(self) -> bool:
         pass
 
+    def add_visualizer(self, visualizer: EnvironmentVisualizer):
+        self.visualizer = visualizer
+
+    def update_visualizer(self):
+        if self.visualizer:
+            self.visualizer.visualize()
+
 
 class GridEnvironment(Environment):
 
-    def __init__(self, width: int,
-                 height: int,
-                 move_reward: int,
-                 goal_reach_reward: int,
-                 invalid_move_reward: int):
+    def __init__(self, width: int, height: int, move_reward: int, goal_reach_reward: int, invalid_move_reward: int):
+        super().__init__()
         self.width = width
         self.height = height
         self.grid = np.zeros((width, height), dtype=np.int32)
@@ -97,6 +113,8 @@ class GridEnvironment(Environment):
             case 3:  # left
                 self.agent_position[0] -= 1
 
+        self.update_visualizer()
+
         if self.goal_reached():
             return self.goal_reach_reward
         else:
@@ -113,3 +131,31 @@ class GridEnvironment(Environment):
 
     def is_terminated(self) -> bool:
         return self.goal_reached()
+
+
+class GridEnvironmentVisualizer(EnvironmentVisualizer):
+
+    def __init__(self, cell_size: int,
+                 screen: pygame.Surface,
+                 env: GridEnvironment,
+                 clock: pygame.time.Clock,
+                 fps: int):
+        self.cell_size = cell_size
+        self.screen = screen
+        self.env = env
+        self.clock = clock
+        self.fps = fps
+
+    def visualize(self):
+        # draw grid
+        visualize_numpy_array(self.screen, self.env.grid, self.cell_size)
+
+        # draw player and goal
+        draw_circle_on_grid(self.screen, self.env.agent_position[0],
+                            self.env.agent_position[1],
+                            self.cell_size, (0, 185, 0))
+        draw_circle_on_grid(self.screen, self.env.goal_position[0],
+                            self.env.goal_position[1],
+                            self.cell_size, (150, 25, 0))
+
+        render_content(self.clock, self.fps)
