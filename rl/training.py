@@ -6,7 +6,9 @@ import pygame
 from tqdm import trange
 
 from environments import Environment, GridEnvironment, GridEnvironmentVisualizer
-from rl.visualization import handle_quit
+from visualization import handle_quit
+# from nptyping import NDarray
+from numpy.typing import NDArray
 
 RESOLUTION = (1280, 720)
 
@@ -41,7 +43,8 @@ class ActionSelectionAlgorithms:
 
 
 def random_monte_carlo(env: Environment, iterations: int, episode_length: int):
-    Q = np.zeros((env.get_state_count(), env.get_action_count()), dtype=np.int32)
+    Q = np.zeros((env.get_state_count(), env.get_action_count()),
+                 dtype=np.int32)
 
     for iteration in range(iterations):
         print(iteration, np.max(Q[0]))
@@ -52,6 +55,7 @@ def random_monte_carlo(env: Environment, iterations: int, episode_length: int):
         states = np.zeros(episode_length, dtype=np.int32)
         actions = np.zeros(episode_length, dtype=np.int32)
 
+        pos = 0
         for pos in range(episode_length):
             state = env.get_state()
             # action = np.random.choice(range(env.get_action_count()))
@@ -71,7 +75,8 @@ def random_monte_carlo(env: Environment, iterations: int, episode_length: int):
         # update state value
         for pos in reversed(range(last_pos)):
             future_rewards = sum(rewards[pos:])
-            Q[states[pos], actions[pos]] += 0.1 * (future_rewards - Q[states[pos], actions[pos]])
+            Q[states[pos], actions[pos]] += 0.1 * \
+                (future_rewards - Q[states[pos], actions[pos]])
 
     return Q
 
@@ -79,13 +84,14 @@ def random_monte_carlo(env: Environment, iterations: int, episode_length: int):
 class PolicyIterationAlgorithm:
 
     def __init__(self, env: Environment):
-        self.Q = np.zeros((env.get_state_count(), env.get_action_count()), dtype=np.float32)
+        self.Q = np.zeros(
+            (env.get_state_count(), env.get_action_count()), dtype=np.float32)
 
     @abstractmethod
     def step(self):
         pass
 
-    def run(self, iterations: int) -> np.ndarray[np.float32, np.float32]:
+    def run(self, iterations: int) -> NDArray[np.float32]:
         """ run algorithm for certain number of steps """
         for _ in trange(iterations):
             self.step()
@@ -130,10 +136,12 @@ class SarsaPolicyIteration(PolicyIterationAlgorithm):
             action = next_action
             reward = self.env.perform_action(action)
 
+        print(self.Q[0, 0])
+
 
 class Agent:
 
-    def __init__(self, Q: np.ndarray[np.float32, np.float32],
+    def __init__(self, Q: NDArray[np.float32],
                  action_selection: Callable[[np.ndarray, int], int]):
         self.Q = Q
         self.action_selection = action_selection
@@ -153,30 +161,32 @@ if __name__ == '__main__':
     env = GridEnvironment(width=20,
                           height=20,
                           move_reward=-1,
-                          goal_reach_reward=100,
+                          goal_reach_reward=1000,
                           invalid_move_reward=-100,
                           wall_touch_reward=-100,
                           random_wall_ratio=0.25)
 
     visualizer = GridEnvironmentVisualizer(cell_size=25,
                                            screen=screen,
-                                           fps=15,  # unlock fps
+                                           fps=15,
                                            clock=clock,
                                            env=env)
 
     sarsa = SarsaPolicyIteration(env,
-                                 alpha=0.1,
-                                 gamma=0.99,
-                                 action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.15),
-                                 max_episode_length=40)
+                                 alpha=0.25,
+                                 gamma=0.999,
+                                 action_selection=ActionSelectionAlgorithms.epsilon_greedy(
+                                     0.15),
+                                 max_episode_length=60)
 
     # perform training
     visualizer.visualize()
-    for _ in trange(40000):
+    for _ in trange(30000):
         sarsa.step()
 
     # visualize fully greedy agent
-    agent = Agent(Q=sarsa.Q, action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.01))
+    agent = Agent(
+        Q=sarsa.Q, action_selection=ActionSelectionAlgorithms.epsilon_greedy(0.01))
     env.reset()
     env.add_visualizer(visualizer)
 
@@ -185,3 +195,7 @@ if __name__ == '__main__':
             env.reset()
         agent.perform_action(env)
         handle_quit()
+
+
+# TODOS
+# - decaying

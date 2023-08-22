@@ -14,7 +14,8 @@ def visualize_numpy_array(screen: pygame.Surface, array, cell_size, wall_color: 
                     color = (200, 200, 200)
             else:
                 color = wall_color
-            pygame.draw.rect(screen, color, (x * cell_size, y * cell_size, cell_size, cell_size))
+            pygame.draw.rect(screen, color, (x * cell_size,
+                             y * cell_size, cell_size, cell_size))
 
 
 def draw_circle_on_grid(screen, pos_x, pos_y, cell_size, color):

@@ -3,7 +3,7 @@ from abc import abstractmethod
 import numpy as np
 import pygame
 
-from rl.visualization import draw_circle_on_grid, render_content, visualize_numpy_array
+from visualization import draw_circle_on_grid, render_content, visualize_numpy_array
 
 
 class EnvironmentVisualizer:
@@ -22,15 +22,15 @@ class Environment:
         pass
 
     @abstractmethod
-    def get_state(self):
+    def get_state(self) -> int:
         pass
 
     @abstractmethod
-    def get_action_count(self):
+    def get_action_count(self) -> int:
         pass
 
     @abstractmethod
-    def perform_action(self, action: int):
+    def perform_action(self, action: int) -> float:
         self.update_visualizer()
 
     @abstractmethod
@@ -72,14 +72,14 @@ class GridEnvironment(Environment):
         self.wall_touch_reward = wall_touch_reward
         self.reset()
 
-    def get_state_count(self):
+    def get_state_count(self) -> int:
         return self.width * self.height
 
-    def get_state(self):
+    def get_state(self) -> int:
         """ map agent position to integer value representing position """
         return (self.height * self.agent_position[1]) + self.agent_position[0]
 
-    def get_action_count(self):
+    def get_action_count(self) -> int:
         return 4
 
     def get_in_bounds_actions(self):
@@ -156,7 +156,8 @@ class GridEnvironmentVisualizer(EnvironmentVisualizer):
 
     def visualize(self):
         # draw grid
-        visualize_numpy_array(self.screen, self.env.grid, self.cell_size, wall_color=(25, 0, 0))
+        visualize_numpy_array(self.screen, self.env.grid,
+                              self.cell_size, wall_color=(25, 0, 0))
 
         # draw player and goal
         draw_circle_on_grid(self.screen, self.env.agent_position[0],
